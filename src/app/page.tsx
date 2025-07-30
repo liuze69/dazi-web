@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const TEXT_SOURCES = {
   chinese: [
@@ -55,7 +55,10 @@ export default function Home() {
   // 播放完成音效
   const playCompletionSound = () => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      
+      const audioContext = new AudioCtx();
       const oscillator = audioContext.createOscillator();
       const gainNode = audioContext.createGain();
       
@@ -69,18 +72,13 @@ export default function Home() {
       oscillator.start();
       gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
       oscillator.stop(audioContext.currentTime + 0.5);
-    } catch (e) {
+    } catch {
       // 静音模式，忽略音频错误
+      console.debug('Audio context not available');
     }
   };
 
-  // 计算平均速度
-  const calculateAvgSpeed = () => {
-    if (history.length > 0) {
-      const totalSpeed = history.reduce((sum, h) => sum + h.speed, 0);
-      setAvgSpeed(totalSpeed / history.length);
-    }
-  };
+
 
   // 处理输入
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,7 +126,7 @@ export default function Home() {
   };
 
   // 进入下一条文本
-  const handleNextText = () => {
+  const handleNextText = useCallback(() => {
     if (currentTextIndex < currentTexts.length - 1) {
       setCurrentTextIndex(currentTextIndex + 1);
       setInput("");
@@ -138,7 +136,7 @@ export default function Home() {
         inputRef.current?.focus();
       }, 100);
     }
-  };
+  }, [currentTextIndex, currentTexts.length]);
 
   // 切换语言
   const handleLanguageChange = (lang: 'chinese' | 'english') => {
@@ -156,7 +154,10 @@ export default function Home() {
 
   // 更新平均速度
   useEffect(() => {
-    calculateAvgSpeed();
+    if (history.length > 0) {
+      const totalSpeed = history.reduce((sum, h) => sum + h.speed, 0);
+      setAvgSpeed(totalSpeed / history.length);
+    }
   }, [history]);
 
   // 自动进入下一条文本
@@ -167,7 +168,7 @@ export default function Home() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [isCompleted, currentTextIndex, currentTexts.length]);
+  }, [isCompleted, currentTextIndex, currentTexts.length, handleNextText]);
 
   // 确保输入框自动聚焦
   useEffect(() => {
